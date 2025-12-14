@@ -27,6 +27,21 @@ const compatibilityData = {
     "ESTJ": { "ISFP": 5, "ISTP": 5, "INTP": 5, "ISFJ": 4, "ESFJ": 4, "ISTJ": 4, "ESTJ": 4, "ESFP": 3, "ESTP": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "ENTP": 2 }
 };
 
+// ⭐ 소속 및 능력 관련 상수 추가
+const AFFILIATIONS = [
+    "백일몽", "민간인", "재난관리국", "무명찬란교"
+];
+const ABILITY_RANKS = ["S", "A", "B", "C", "D", "E"];
+
+// 능력 랭크에 따른 호감도 보너스 계수
+const ABILITY_MODIFIER = {
+    "S": 1.2, "A": 1.1, "B": 1.0, "C": 0.9, "D": 0.8, "E": 0.7
+};
+// 소속 선호/혐오에 따른 호감도 변화 추가량
+const AFFILIATION_BONUS = 5;
+const AFFILIATION_PENALTY = -5;
+// ⭐
+
 const PLACES = [
     { id: 'apt', name: '아파트', type: 'home' },
     { id: 'mart', name: '마트', type: 'out' },
@@ -61,7 +76,7 @@ const ACTIONS = [
 ];
 
 const EVENTS = [
-    { type: 'fight', name: '싸움', change: -15, text: '와(과) 사소한 문제로 크게 다퉜다' },
+    { type: 'fight', name: '싸움', change: -15, text: '와(과) 사소한 문제로 크게 다투다' },
     { type: 'confess', name: '고백', change: 0, text: '에게 마음을 담아 고백했다' }, 
     { type: 'cut', name: '절교', change: -30, text: '와(과)의 연을 끊기로 했다' },
     { type: 'friend', name: '친교', change: 10, text: '와(과) 급격히 친해졌다' },
@@ -79,6 +94,8 @@ let isDarkMode = false;
 window.onload = () => {
     initMbtiSelect();
     initRoomSelect();
+    initAffiliationSelect(); // ⭐ 새로 추가
+    initAbilitySelect();     // ⭐ 새로 추가
     renderCharacterList();
     renderLocations();
     updateUI();
@@ -214,6 +231,38 @@ function getProbabilisticChange(score) {
         return -5;
     }
 }
+
+// ⭐ 능력 및 소속 보너스를 적용하여 최종 호감도 변화량을 계산하는 함수
+function getFinalAffectionChange(actor, target, baseChange) {
+    let finalChange = baseChange;
+    
+    // 1. 행위자(Actor)의 능력 보너스 적용
+    const abilityMod = ABILITY_MODIFIER[actor.ability] || 1.0;
+    if (finalChange > 0) {
+        // 긍정적 변화 시: 능력치가 높을수록 증가 폭 커짐
+        finalChange = Math.round(finalChange * abilityMod);
+    } else if (finalChange < 0) {
+        // 부정적 변화 시: 능력치가 높을수록 감소 폭 작아짐 (분모에 적용)
+        finalChange = Math.round(finalChange / abilityMod);
+    }
+
+    // 2. 소속 선호/혐오 보너스/페널티 적용
+    // 행위자(Actor)가 대상(Target)의 소속을 선호하는 경우
+    if (actor.preferredAffiliation && actor.preferredAffiliation === target.affiliation) {
+        finalChange += AFFILIATION_BONUS;
+    }
+    // 행위자(Actor)가 대상(Target)의 소속을 싫어하는 경우
+    if (actor.dislikedAffiliation && actor.dislikedAffiliation === target.affiliation) {
+        finalChange += AFFILIATION_PENALTY;
+    }
+
+    // 최종 변화량의 상한/하한 조정 (너무 극단적인 변화 방지)
+    if (finalChange > 20) finalChange = 20;
+    if (finalChange < -20) finalChange = -20;
+    
+    return finalChange;
+}
+// ⭐
 
 function nextDay() {
     if (characters.length === 0) {
@@ -458,8 +507,15 @@ function nextDay() {
                     const processedText = fillTemplate(getRandom(action.text));
                     const chemistryScore = calculateChemistry(actor.mbti, target.mbti);
                     
-                    updateRelationship(actor.id, target.id, getProbabilisticChange(chemistryScore));
-                    updateRelationship(target.id, actor.id, getProbabilisticChange(chemistryScore));
+                    // ⭐ 능력 및 소속 보너스 적용
+                    const baseChange1 = getProbabilisticChange(chemistryScore);
+                    const baseChange2 = getProbabilisticChange(chemistryScore);
+                    const finalChange1 = getFinalAffectionChange(actor, target, baseChange1);
+                    const finalChange2 = getFinalAffectionChange(target, actor, baseChange2);
+                    
+                    updateRelationship(actor.id, target.id, finalChange1);
+                    updateRelationship(target.id, actor.id, finalChange2);
+                    // ⭐
 
                     actor.currentAction = action.name;
                     target.currentAction = `함께 ${action.name}`;
@@ -467,7 +523,7 @@ function nextDay() {
                     dailyLogs.push({ text: `${actor.name}${getJosa(actor.name, '와/과')} ${target.name}${getJosa(target.name, '은/는')} ${isTravel ? '여행을 떠나' : getLocationName(locId)+'에서'} ${processedText}.`, type: isTravel ? 'event' : 'social' });
                 }
 
-            } else {
+            } else { // 3인 이상 그룹 상호작용
                 let action = null;
                 if (isTravel) {
                     action = ACTIONS.find(a => a.id === 'travel');
@@ -489,8 +545,17 @@ function nextDay() {
                     group[i].currentAction = isTravel ? action.name : `함께 ${action.name}`;
                     for(let j=0; j<group.length; j++) {
                         if(i === j) continue;
-                        const chem = calculateChemistry(group[i].mbti, group[j].mbti);
-                        updateRelationship(group[i].id, group[j].id, getProbabilisticChange(chem));
+                        
+                        const actor = group[i];
+                        const target = group[j];
+                        const chem = calculateChemistry(actor.mbti, target.mbti);
+                        
+                        // ⭐ 능력 및 소속 보너스 적용
+                        const baseChange = getProbabilisticChange(chem);
+                        const finalChange = getFinalAffectionChange(actor, target, baseChange);
+                        
+                        updateRelationship(actor.id, target.id, finalChange);
+                        // ⭐
                     }
                 }
 
@@ -520,10 +585,17 @@ function addCharacter() {
     const mbtiInput = document.getElementById('input-mbti');
     const roomInput = document.getElementById('input-room');
     const isMinorInput = document.getElementById('input-minor');
+    // ⭐ 새로 추가된 입력 요소들
+    const affiliationInput = document.getElementById('input-affiliation');
+    const preferredAffiliationInput = document.getElementById('input-pref-affiliation');
+    const dislikedAffiliationInput = document.getElementById('input-disliked-affiliation');
+    const abilityInput = document.getElementById('input-ability');
+    // ⭐
 
     const name = nameInput.value.trim();
     if (!name) return alert("이름을 입력해주세요.");
     if (characters.some(c => c.name === name)) return alert("이미 존재하는 이름입니다.");
+    
     let room = roomInput.value;
     if (room === 'auto') {
         room = findEmptyRoom();
@@ -536,6 +608,14 @@ function addCharacter() {
         mbti: mbtiInput.value, 
         room: room,
         isMinor: isMinorInput.checked,
+        
+        // ⭐ 새로 추가되는 캐릭터 속성 초기화
+        affiliation: affiliationInput.value,
+        preferredAffiliation: preferredAffiliationInput.value === 'none' ? null : preferredAffiliationInput.value,
+        dislikedAffiliation: dislikedAffiliationInput.value === 'none' ? null : dislikedAffiliationInput.value,
+        ability: abilityInput.value,
+        // ⭐
+
         currentLocation: 'apt', 
         currentAction: '-', 
         relationships: {}, 
@@ -575,6 +655,51 @@ function initRoomSelect() {
     for (let f=1; f<=5; f++) for (let r=1; r<=6; r++) { const opt = document.createElement('option'); opt.value = `${f}0${r}`; opt.text = `${f}0${r}호`; sel.appendChild(opt); }
 }
 
+// ⭐ 소속 입력 필드 초기화 함수
+function initAffiliationSelect() {
+    const preferredAffiliationInput = document.getElementById('input-pref-affiliation');
+    const dislikedAffiliationInput = document.getElementById('input-disliked-affiliation');
+    
+    [preferredAffiliationInput, dislikedAffiliationInput].forEach(sel => {
+        sel.innerHTML = '';
+        const optNone = document.createElement('option');
+        optNone.value = 'none';
+        optNone.text = '선택 안함';
+        optNone.selected = true;
+        sel.appendChild(optNone);
+
+        AFFILIATIONS.forEach(t => { 
+            const opt = document.createElement('option'); 
+            opt.value = t; 
+            opt.text = t; 
+            sel.appendChild(opt); 
+        });
+    });
+
+    // 소속 (필수값) 초기화
+    const mainSel = document.getElementById('input-affiliation');
+    mainSel.innerHTML = '';
+    AFFILIATIONS.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.text = t;
+        mainSel.appendChild(opt);
+    });
+}
+
+// ⭐ 능력 입력 필드 초기화 함수
+function initAbilitySelect() {
+    const sel = document.getElementById('input-ability');
+    ABILITY_RANKS.forEach(t => { 
+        const opt = document.createElement('option'); 
+        opt.value = t; 
+        opt.text = t; 
+        if (t === 'B') opt.selected = true; // B 랭크를 기본값으로
+        sel.appendChild(opt); 
+    });
+}
+// ⭐
+
 function renderCharacterList() {
     const container = document.getElementById('character-list');
     const emptyState = document.getElementById('empty-state');
@@ -597,6 +722,10 @@ function renderCharacterList() {
                     <span class="text-xs bg-brand-100 dark:bg-brand-900 text-brand-600 dark:text-brand-300 px-2 py-1 rounded-full">${char.mbti}</span>
                 </div>
                 <div class="text-sm text-slate-500 dark:text-slate-400 mb-2"><i class="fa-solid fa-door-closed mr-1"></i> ${char.room}호</div>
+                <div class="flex items-center gap-2 text-sm">
+                    <span class="text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium" title="소속">${char.affiliation}</span>
+                    <span class="text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full font-bold" title="능력">${char.ability}</span>
+                </div>
                 <div class="text-center mt-2 p-2 bg-brand-50 dark:bg-slate-800 rounded-lg text-brand-600 dark:text-brand-400 text-sm font-medium">클릭하여 관계 보기</div>
             `;
         } else {
@@ -606,7 +735,11 @@ function renderCharacterList() {
                     <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-600 flex items-center justify-center text-lg"><i class="fa-regular fa-user"></i></div>
                     <div>
                         <h3 class="font-bold text-slate-900 dark:text-white leading-tight">${char.name}${badge}</h3>
-                        <div class="text-xs text-slate-500 dark:text-slate-400">${char.mbti} · ${char.room}호</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400">
+                           ${char.mbti} · ${char.room}호 
+                           <span class="ml-2 text-brand-600 dark:text-brand-300 font-semibold" title="능력">${char.ability}</span>
+                           <span class="ml-1 text-purple-600 dark:text-purple-300" title="소속">${char.affiliation}</span>
+                        </div>
                     </div>
                 </div>
             `;
@@ -722,8 +855,8 @@ function renderStatusTable() {
     const tbody = document.getElementById('status-table-body');
     tbody.innerHTML = '';
     characters.forEach(char => {
-        const tr = document.createElement('tr');
         const locName = getLocationName(char.currentLocation);
+        const tr = document.createElement('tr');
         tr.innerHTML = `<td class="px-4 py-3 font-medium text-slate-900 dark:text-white">${char.name}</td><td class="px-4 py-3 text-slate-500 dark:text-slate-400">${locName}</td><td class="px-4 py-3 text-slate-500 dark:text-slate-400">${char.currentAction || '-'}</td>`;
         tbody.appendChild(tr);
     });
@@ -783,7 +916,14 @@ function closeModal() { document.getElementById('affection-modal').classList.add
 function exportData(includeRelationships) {
     if (characters.length === 0) return alert("저장할 데이터가 없습니다.");
     const exportData = characters.map(c => {
-        const base = { name: c.name, mbti: c.mbti, room: c.room, isMinor: c.isMinor };
+        const base = { 
+            name: c.name, mbti: c.mbti, room: c.room, isMinor: c.isMinor, 
+            // ⭐ 새로 추가된 속성
+            affiliation: c.affiliation, ability: c.ability, 
+            preferredAffiliation: c.preferredAffiliation || 'none', 
+            dislikedAffiliation: c.dislikedAffiliation || 'none'
+            // ⭐
+        };
         if (includeRelationships) {
             base.id = c.id; base.relationships = c.relationships; base.specialRelations = c.specialRelations; base.currentLocation = c.currentLocation; base.currentAction = c.currentAction;
         }
@@ -814,6 +954,12 @@ function importData(input) {
                     mbti: d.mbti, 
                     room: d.room,
                     isMinor: d.isMinor || false,
+                    // ⭐ 새로 추가된 속성들 불러오기
+                    affiliation: d.affiliation || AFFILIATIONS[0], 
+                    ability: d.ability || ABILITY_RANKS[2], // B 랭크
+                    preferredAffiliation: d.preferredAffiliation === 'none' ? null : d.preferredAffiliation,
+                    dislikedAffiliation: d.dislikedAffiliation === 'none' ? null : d.dislikedAffiliation,
+                    // ⭐
                     currentLocation: d.currentLocation || 'apt', 
                     currentAction: d.currentAction || '-',
                     relationships: d.relationships || {}, 
