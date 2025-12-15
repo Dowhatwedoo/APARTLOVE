@@ -264,12 +264,12 @@ function getFinalAffectionChange(actor, target, baseChange) {
 }
 // ⭐
 
-function nextDay() {
+function nextDay(isBulk = false) { // ⭐ 매개변수를 추가하고 기본값을 false로 설정
     if (characters.length === 0) {
         alert("최소 1명의 캐릭터가 필요합니다.");
         return;
     }
-    day++;
+    
     const dailyLogs = [];
     
     characters.forEach(c => c.interactionGroup = null);
@@ -566,12 +566,72 @@ function nextDay() {
             }
         }
     }
+    day++;
 
-    logs = [...dailyLogs, ...logs];
-    renderLogs(dailyLogs);
+logs = [...dailyLogs, ...logs];
+    
+    // ⭐ isBulk가 false일 때만 로그를 화면에 출력 (매일 클릭 시)
+    if (!isBulk) { 
+        renderLogs(dailyLogs);
+    } 
+    
     renderStatusTable();
     renderLocations();
     updateUI();
+    
+    // ⭐ 일주일 진행을 위해 로그를 반환
+    return dailyLogs; 
+} // nextDay 함수 종료
+
+function nextWeek() {
+    if (characters.length === 0) {
+        alert("최소 1명의 캐릭터가 필요합니다.");
+        return;
+    }
+    if (!confirm("7일간 시뮬레이션을 진행하시겠습니까?")) {
+        return;
+    }
+
+    const allWeeklyLogs = [];
+    const startDay = day; // 현재 날짜 (n일차)를 기준으로 시작
+
+    // 7번 반복하며 nextDay 함수 호출
+    for (let i = 0; i < 7; i++) {
+        // nextDay(true)를 호출하여 화면 출력은 건너뛰고 로그만 반환받음
+        const dailyLogs = nextDay(true); 
+        allWeeklyLogs.push({
+            day: startDay + i,
+            logs: dailyLogs
+        });
+    }
+
+    // 일주일 치 로그를 한 번에 화면에 출력
+    renderWeeklyLogs(allWeeklyLogs);
+}
+
+// 일주일치 로그를 모아서 한 번에 출력하는 함수
+function renderWeeklyLogs(weeklyLogs) {
+    const container = document.getElementById('log-container');
+    if (container.querySelector('.italic')) container.innerHTML = '';
+    
+
+    weeklyLogs.forEach(dayLog => {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = "mb-6 animate-[fadeIn_0.5s_ease-out]";
+        dayDiv.innerHTML = `<div class="flex items-center gap-2 mb-3"><div class="h-px bg-slate-300 dark:bg-slate-600 flex-1"></div><span class="text-xs font-bold text-slate-400 uppercase tracking-wider">${dayLog.day}일차</span><div class="h-px bg-slate-300 dark:bg-slate-600 flex-1"></div></div>`;
+        
+        dayLog.logs.forEach(log => {
+            const p = document.createElement('div');
+            let styleClass = "text-slate-600 dark:text-slate-300 border-l-2 border-slate-300 pl-3 py-1";
+            if (log.type === 'event') styleClass = "text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/30 border-l-4 border-brand-500 pl-3 py-2 rounded-r-lg font-medium";
+            if (log.type === 'social') styleClass = "text-slate-700 dark:text-slate-200 border-l-2 border-yellow-400 pl-3 py-1 bg-yellow-50/50 dark:bg-transparent";
+            p.className = `mb-2 text-sm ${styleClass}`;
+            p.textContent = log.text;
+            dayDiv.appendChild(p);
+        });
+        
+        container.insertBefore(dayDiv, container.firstChild);
+    });
 }
 
 function getLocationName(id) {
