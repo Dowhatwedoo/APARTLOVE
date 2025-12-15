@@ -90,6 +90,23 @@
                             </select>
                     </div>
                     <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">성향</label>
+                        <select id="input-alignment" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-32 alignment-select-main">
+                            </select>
+                    </div>
+    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">선호 성향</label>
+                        <select id="input-pref-alignment" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-32 alignment-select">
+                            </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">싫어하는 성향</label>
+                        <select id="input-disliked-alignment" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-32 alignment-select">
+                            </select>
+                    </div>
+                    <div>
                         <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">능력 (S~E)</label>
                         <select id="input-ability" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-24">
                             </select>
@@ -224,11 +241,12 @@
                             <button onclick="nextWeek()" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-brand-500/30 transition-all active:scale-95 flex items-center">
                                 일주일 진행 <i class="fa-solid fa-forward-step ml-2"></i>
                             </button>
-                            <button onclick="nextDay(false)" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-brand-500/30 transition-all active:scale-95 flex items-center">
+
+                            <button onclick="handleNextDayClick()" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg hover:shadow-brand-500/30 transition-all active:scale-95 flex items-center">
                                 다음날 진행 <i class="fa-solid fa-arrow-right ml-2"></i>
                             </button>
-                        </div>
-                    </div>
+                     </div>
+                </div
             </div>
         </section>
 

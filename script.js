@@ -33,6 +33,16 @@ const AFFILIATIONS = [
 ];
 const ABILITY_RANKS = ["S", "A", "B", "C", "D", "E"];
 
+// 성향 정의
+const ALIGNMENTS = [
+    "질서선", "중립선", "혼돈선", 
+    "질서 중립", "완전 중립", "혼돈 중립", 
+    "질서악", "중립악", "혼돈악"
+];
+// 성향 선호/혐오에 따른 호감도 변화 추가량 (새 로직에서 사용)
+const ALIGNMENT_PREF_BONUS = 3;         // 성향 선호 시 추가 보너스
+const ALIGNMENT_DISLIKED_MIN_BONUS = 1; // 성향 싫어할 때 최소 보너스
+
 // 능력 랭크에 따른 호감도 보너스 계수
 const ABILITY_MODIFIER = {
     "S": 1.2, "A": 1.1, "B": 1.0, "C": 0.9, "D": 0.8, "E": 0.7
@@ -94,8 +104,9 @@ let isDarkMode = false;
 window.onload = () => {
     initMbtiSelect();
     initRoomSelect();
-    initAffiliationSelect(); // ⭐ 새로 추가
-    initAbilitySelect();     // ⭐ 새로 추가
+    initAffiliationSelect(); 
+    initAbilitySelect();     
+    initAlignmentSelect();
     renderCharacterList();
     renderLocations();
     updateUI();
@@ -232,6 +243,14 @@ function getProbabilisticChange(score) {
     }
 }
 
+// ⭐ 특정 캐릭터의 동거인(들)을 반환하는 보조 함수
+function getRoommates(charId) {
+    const char = characters.find(c => c.id === charId);
+    if (!char) return [];
+    
+    return characters.filter(c => c.room === char.room && c.id !== charId);
+}
+
 // ⭐ 능력 및 소속 보너스를 적용하여 최종 호감도 변화량을 계산하는 함수
 function getFinalAffectionChange(actor, target, baseChange) {
     let finalChange = baseChange;
@@ -246,15 +265,27 @@ function getFinalAffectionChange(actor, target, baseChange) {
         finalChange = Math.round(finalChange / abilityMod);
     }
 
-    // 2. 소속 선호/혐오 보너스/페널티 적용
-    // 행위자(Actor)가 대상(Target)의 소속을 선호하는 경우
+    // [삭제] 2. 소속 선호/혐오 보너스/페널티 적용 (초기 설정 로직으로 대체되었으므로 삭제)
+    /*
     if (actor.preferredAffiliation && actor.preferredAffiliation === target.affiliation) {
         finalChange += AFFILIATION_BONUS;
     }
-    // 행위자(Actor)가 대상(Target)의 소속을 싫어하는 경우
     if (actor.dislikedAffiliation && actor.dislikedAffiliation === target.affiliation) {
         finalChange += AFFILIATION_PENALTY;
     }
+    */
+    // ⭐ 2. 성향 선호/혐오 보너스/페널티 적용 (호감도 상승 시에만 적용)
+    if (baseChange > 0) { 
+        // 행위자(Actor)가 대상(Target)의 성향을 선호하는 경우
+        if (actor.preferredAlignment && actor.preferredAlignment === target.alignment) {
+            finalChange += ALIGNMENT_PREF_BONUS; // +3
+        }
+        // 행위자(Actor)가 대상(Target)의 성향을 싫어하는 경우
+        else if (actor.dislikedAlignment && actor.dislikedAlignment === target.alignment) {
+            finalChange += ALIGNMENT_DISLIKED_MIN_BONUS; // +1
+        }
+    }
+    // ⭐
 
     // 최종 변화량의 상한/하한 조정 (너무 극단적인 변화 방지)
     if (finalChange > 20) finalChange = 20;
@@ -264,7 +295,7 @@ function getFinalAffectionChange(actor, target, baseChange) {
 }
 // ⭐
 
-function nextDay(isBulk = false) { // ⭐ 매개변수를 추가하고 기본값을 false로 설정
+function nextDay(isBulk = false) { 
     if (characters.length === 0) {
         alert("최소 1명의 캐릭터가 필요합니다.");
         return;
@@ -421,16 +452,50 @@ function nextDay(isBulk = false) { // ⭐ 매개변수를 추가하고 기본값
                         }
                     } 
                     else if (evt.type === 'confess') {
+                        // 미성년자 나이 차이 로직은 유지
                         if (actor.isMinor !== target.isMinor) {
                             updateRelationship(actor.id, target.id, 2); updateRelationship(target.id, actor.id, 2);
                             logText = `${actor.name}${getJosa(actor.name, '은/는')} ${target.name}에게 호감이 있지만, 나이 차이를 의식해 마음을 접었다.`;
                             actor.currentAction = "대화"; target.currentAction = "대화";
                             dailyLogs.push({ text: logText, type: 'social' });
+                            
                         } else {
-                            if (isLovers) {
+                            const actorRoommates = getRoommates(actor.id);
+                            const targetRoommates = getRoommates(target.id);
+                            const isRoommateConfess = actor.room === target.room && actorRoommates.length > 0 && targetRoommates.length > 0;
+                            const isLover = isLovers; // 기존 연인 여부
+
+                            if (isLover) {
+                                // 4. 기존 연인 관계 로직 (유지)
                                 updateRelationship(actor.id, target.id, 5); updateRelationship(target.id, actor.id, 5);
                                 logText = `[사랑] ${actor.name}${getJosa(actor.name, '은/는')} ${target.name}에게 다시 사랑을 맹세했다.`;
-                            } else if (currentScore > 50) {
+                            } 
+                            // ⭐ 3-2. 동거인끼리 고백 (무조건 성공)
+                            else if (isRoommateConfess) {
+                                setSpecialStatus(actor.id, target.id, 'lover'); setSpecialStatus(target.id, actor.id, 'lover');
+                                updateRelationship(actor.id, target.id, 15); updateRelationship(target.id, actor.id, 15);
+                                logText = `[동거인 사랑] ${actor.name}${getJosa(actor.name, '이/가')} ${target.name}에게 고백했고, 둘은 방에서 연인이 되었다! 💖`;
+                            }
+                            // ⭐ 3-1B. 고백하는 쪽에 동거인 있음 (중단)
+                            else if (actorRoommates.length > 0 && actor.room !== target.room) {
+                                const roommate = getRandom(actorRoommates);
+                                // 3-1B: 고백 중단 로그
+                                logText = `[동거인 난입] ${actor.name}${getJosa(actor.name, '이/가')} ${target.name}에게 고백하려던 순간, 동거인(${roommate.name})${getJosa(roommate.name, '이/가')} 나타나 ${actor.name}을(를) 강제로 끌고 갔다.`;
+                                // 3-1B 후속: 동거인 호감도 하락
+                                updateRelationship(target.id, roommate.id, -5); 
+                                logs.push({ text: `[배신감] 동거인 ${roommate.name}${getJosa(roommate.name, '이/가')} ${actor.name}의 행동에 배신감을 느꼈다. (호감도 -5)`, type: 'event' });
+                            }
+                            // ⭐ 3-1A. 고백 받는 쪽에 동거인 있음 (거절)
+                            else if (targetRoommates.length > 0 && actor.room !== target.room) {
+                                const roommate = getRandom(targetRoommates);
+                                // 3-1A: 고백 거절 로그
+                                logText = `[동거인 의식] ${target.name}${getJosa(target.name, '은/는')} ${actor.name}${getJosa(actor.name, '의')} 마음을 확인하려던 순간, 동거인(${roommate.name})${getJosa(roommate.name, '이/가')} 신경 쓰여 고백을 거절했다.`;
+                                // 3-1A 후속: 동거인 호감도 하락
+                                updateRelationship(target.id, roommate.id, -5); 
+                                logs.push({ text: `[배신감] 동거인 ${roommate.name}${getJosa(roommate.name, '이/가')} ${target.name}의 행동에 배신감을 느꼈다. (호감도 -5)`, type: 'event' });
+                            }
+                            // ⭐ 3. 기타 일반 고백 로직 (기존 로직 유지)
+                            else if (currentScore > 50) {
                                 const chemBonus = (chemistryScore - 3) * 0.05;
                                 const successChance = 0.4 + (currentScore/200) + chemBonus;
                                 if (Math.random() < successChance) {
@@ -447,7 +512,7 @@ function nextDay(isBulk = false) { // ⭐ 매개변수를 추가하고 기본값
                             actor.currentAction = evt.name; target.currentAction = `(대상) ${evt.name}`;
                             dailyLogs.push({ text: logText, type: 'event' });
                         }
-                    } 
+                    }
                     else if (evt.type === 'breakup') {
                         if (isLovers) {
                             if (Math.random() < 0.3 - (currentScore/200)) {
@@ -566,7 +631,6 @@ function nextDay(isBulk = false) { // ⭐ 매개변수를 추가하고 기본값
             }
         }
     }
-    day++;
 
 logs = [...dailyLogs, ...logs];
     
@@ -575,13 +639,23 @@ logs = [...dailyLogs, ...logs];
         renderLogs(dailyLogs);
     } 
     
+    // [삭제] renderStatusTable();  
+    // [삭제] renderLocations();    
+    // [삭제] updateUI();          
+    
+    return dailyLogs; 
+} 
+
+// ⭐ 하루 진행 버튼의 새로운 로직 진입점
+function handleNextDayClick() {
+    // 1. 하루 진행 로직 실행
+    nextDay(false); // 로그 출력은 nextDay 내부에서 처리
+
+    // 2. UI 업데이트
     renderStatusTable();
     renderLocations();
     updateUI();
-    
-    // ⭐ 일주일 진행을 위해 로그를 반환
-    return dailyLogs; 
-} // nextDay 함수 종료
+}
 
 function nextWeek() {
     if (characters.length === 0) {
@@ -595,9 +669,8 @@ function nextWeek() {
     const allWeeklyLogs = [];
     const startDay = day; // 현재 날짜 (n일차)를 기준으로 시작
 
-    // 7번 반복하며 nextDay 함수 호출
+// 7번 반복하며 nextDay 함수 호출
     for (let i = 0; i < 7; i++) {
-        // nextDay(true)를 호출하여 화면 출력은 건너뛰고 로그만 반환받음
         const dailyLogs = nextDay(true); 
         allWeeklyLogs.push({
             day: startDay + i,
@@ -607,6 +680,11 @@ function nextWeek() {
 
     // 일주일 치 로그를 한 번에 화면에 출력
     renderWeeklyLogs(allWeeklyLogs);
+    
+    // ⭐ 7일치 로직이 모두 끝난 후 UI를 한 번 업데이트합니다.
+    renderStatusTable();
+    renderLocations();
+    updateUI(); 
 }
 
 // 일주일치 로그를 모아서 한 번에 출력하는 함수
@@ -634,6 +712,7 @@ function renderWeeklyLogs(weeklyLogs) {
     });
 }
 
+
 function getLocationName(id) {
     const p = PLACES.find(x => x.id === id);
     return p ? p.name : id;
@@ -645,11 +724,13 @@ function addCharacter() {
     const mbtiInput = document.getElementById('input-mbti');
     const roomInput = document.getElementById('input-room');
     const isMinorInput = document.getElementById('input-minor');
-    // ⭐ 새로 추가된 입력 요소들
     const affiliationInput = document.getElementById('input-affiliation');
     const preferredAffiliationInput = document.getElementById('input-pref-affiliation');
     const dislikedAffiliationInput = document.getElementById('input-disliked-affiliation');
     const abilityInput = document.getElementById('input-ability');
+    const alignmentInput = document.getElementById('input-alignment');
+    const preferredAlignmentInput = document.getElementById('input-pref-alignment');
+    const dislikedAlignmentInput = document.getElementById('input-disliked-alignment');
     // ⭐
 
     const name = nameInput.value.trim();
@@ -669,17 +750,53 @@ function addCharacter() {
         room: room,
         isMinor: isMinorInput.checked,
         
-        // ⭐ 새로 추가되는 캐릭터 속성 초기화
+        // ⭐ 소속/능력 속성 (기존 유지)
         affiliation: affiliationInput.value,
         preferredAffiliation: preferredAffiliationInput.value === 'none' ? null : preferredAffiliationInput.value,
         dislikedAffiliation: dislikedAffiliationInput.value === 'none' ? null : dislikedAffiliationInput.value,
         ability: abilityInput.value,
+        
+        // ⭐ 성향 속성 추가
+        alignment: alignmentInput.value,
+        preferredAlignment: preferredAlignmentInput.value === 'none' ? null : preferredAlignmentInput.value,
+        dislikedAlignment: dislikedAlignmentInput.value === 'none' ? null : dislikedAlignmentInput.value,
         // ⭐
 
         currentLocation: 'apt', 
         currentAction: '-', 
         relationships: {}, 
         specialRelations: {}
+    });
+
+    // ⭐ 1. 소속 영향 로직: 초기 호감도 설정
+    const newChar = characters[characters.length - 1]; // 방금 추가된 새 캐릭터
+    
+    // (A) 기존 캐릭터가 새 캐릭터에게 영향
+    characters.forEach(existingChar => {
+        if (existingChar.id === newChar.id) return; // 자기 자신 제외
+
+        // 기존 캐릭터가 새 캐릭터의 소속을 선호
+        if (existingChar.preferredAffiliation && existingChar.preferredAffiliation === newChar.affiliation) {
+            updateRelationship(existingChar.id, newChar.id, AFFILIATION_INIT_BONUS); // +30
+            logs.push({ text: `[소속 인연] ${existingChar.name}${getJosa(existingChar.name, '은/는')} ${newChar.affiliation} 소속인 ${newChar.name}${getJosa(newChar.name, '에게')} 처음부터 강한 호감을 가졌다. (호감도 ${AFFILIATION_INIT_BONUS})`, type: 'event' });
+        }
+        // 기존 캐릭터가 새 캐릭터의 소속을 싫어함
+        else if (existingChar.dislikedAffiliation && existingChar.dislikedAffiliation === newChar.affiliation) {
+            updateRelationship(existingChar.id, newChar.id, AFFILIATION_INIT_PENALTY); // -20
+            logs.push({ text: `[소속 갈등] ${existingChar.name}${getJosa(existingChar.name, '은/는')} ${newChar.affiliation} 소속인 ${newChar.name}${getJosa(newChar.name, '에게')} 강력한 거리감을 느꼈다. (호감도 ${AFFILIATION_INIT_PENALTY})`, type: 'event' });
+        }
+        
+        // (B) 새 캐릭터가 기존 캐릭터에게 영향
+        // 새 캐릭터가 기존 캐릭터의 소속을 선호
+        if (newChar.preferredAffiliation && newChar.preferredAffiliation === existingChar.affiliation) {
+            updateRelationship(newChar.id, existingChar.id, AFFILIATION_INIT_BONUS); // +30
+            logs.push({ text: `[소속 인연] ${newChar.name}${getJosa(newChar.name, '은/는')} ${existingChar.affiliation} 소속인 ${existingChar.name}${getJosa(existingChar.name, '에게')} 처음부터 강한 호감을 가졌다. (호감도 ${AFFILIATION_INIT_BONUS})`, type: 'event' });
+        }
+        // 새 캐릭터가 기존 캐릭터의 소속을 싫어함
+        else if (newChar.dislikedAffiliation && newChar.dislikedAffiliation === existingChar.affiliation) {
+            updateRelationship(newChar.id, existingChar.id, AFFILIATION_INIT_PENALTY); // -20
+            logs.push({ text: `[소속 갈등] ${newChar.name}${getJosa(newChar.name, '은/는')} ${existingChar.affiliation} 소속인 ${existingChar.name}${getJosa(existingChar.name, '에게')} 강력한 거리감을 느꼈다. (호감도 ${AFFILIATION_INIT_PENALTY})`, type: 'event' });
+        }
     });
     nameInput.value = '';
     isMinorInput.checked = false;
@@ -758,7 +875,38 @@ function initAbilitySelect() {
         sel.appendChild(opt); 
     });
 }
-// ⭐
+
+// ⭐ 성향 입력 필드 초기화 함수
+function initAlignmentSelect() {
+    const alignmentSelects = document.querySelectorAll('.alignment-select');
+    const mainSel = document.getElementById('input-alignment');
+    const preferredAlignmentInput = document.getElementById('input-pref-alignment');
+    const dislikedAlignmentInput = document.getElementById('input-disliked-alignment');
+
+    const alignmentsWithNone = ['선택 안함', ...ALIGNMENTS];
+
+    // 선호/싫어하는 성향 드롭다운 초기화 (선택 안함 옵션 포함)
+    [preferredAlignmentInput, dislikedAlignmentInput].forEach(sel => {
+        sel.innerHTML = '';
+        alignmentsWithNone.forEach((t, index) => { 
+            const opt = document.createElement('option'); 
+            opt.value = index === 0 ? 'none' : t; 
+            opt.text = t; 
+            if (index === 0) opt.selected = true;
+            sel.appendChild(opt); 
+        });
+    });
+
+    // 기본 성향 드롭다운 초기화
+    mainSel.innerHTML = '';
+    ALIGNMENTS.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.text = t;
+        if (t === '완전 중립') opt.selected = true; // 기본값
+        mainSel.appendChild(opt);
+    });
+}
 
 function renderCharacterList() {
     const container = document.getElementById('character-list');
@@ -789,8 +937,10 @@ function renderCharacterList() {
                 <div class="text-center mt-2 p-2 bg-brand-50 dark:bg-slate-800 rounded-lg text-brand-600 dark:text-brand-400 text-sm font-medium">클릭하여 관계 보기</div>
             `;
         } else {
+        div.onclick = () => showCharacterDetailModal(char.id); 
+
             div.innerHTML = `
-                <button onclick="removeCharacter('${char.id}')" class="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"><i class="fa-solid fa-times"></i></button>
+                <button onclick="event.stopPropagation(); removeCharacter('${char.id}')" class="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"><i class="fa-solid fa-times"></i></button>
                 <div class="flex items-center gap-3 mb-3">
                     <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-600 flex items-center justify-center text-lg"><i class="fa-regular fa-user"></i></div>
                     <div>
