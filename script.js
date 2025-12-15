@@ -730,6 +730,8 @@ function getLocationName(id) {
 
 function addCharacter() {
     if (characters.length >= 30) return alert("최대 30명까지만 가능합니다.");
+    
+    // 기존 입력 필드 가져오기
     const nameInput = document.getElementById('input-name');
     const mbtiInput = document.getElementById('input-mbti');
     const roomInput = document.getElementById('input-room');
@@ -741,7 +743,9 @@ function addCharacter() {
     const alignmentInput = document.getElementById('input-alignment');
     const preferredAlignmentInput = document.getElementById('input-pref-alignment');
     const dislikedAlignmentInput = document.getElementById('input-disliked-alignment');
-    // ⭐
+    
+    // ⭐ [추가] 사진 입력 필드 가져오기
+    const profileImgInput = document.getElementById('input-profile-img');
 
     const name = nameInput.value.trim();
     if (!name) return alert("이름을 입력해주세요.");
@@ -753,64 +757,66 @@ function addCharacter() {
         if (!room) return alert("빈 방이 없습니다.");
     } else if (getRoomCount(room) >= 4) return alert("해당 방은 정원 초과입니다.");
 
-    characters.push({
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
-        name: name, 
-        mbti: mbtiInput.value, 
-        room: room,
-        isMinor: isMinorInput.checked,
-        
-        // ⭐ 소속/능력 속성 (기존 유지)
-        affiliation: affiliationInput.value,
-        preferredAffiliation: preferredAffiliationInput.value === 'none' ? null : preferredAffiliationInput.value,
-        dislikedAffiliation: dislikedAffiliationInput.value === 'none' ? null : dislikedAffiliationInput.value,
-        ability: abilityInput.value,
-        
-        // ⭐ 성향 속성 추가
-        alignment: alignmentInput.value,
-        preferredAlignment: preferredAlignmentInput.value === 'none' ? null : preferredAlignmentInput.value,
-        dislikedAlignment: dislikedAlignmentInput.value === 'none' ? null : dislikedAlignmentInput.value,
-        // ⭐
+    // 데이터 저장 로직 (사진 처리 후 실행)
+    const saveCharData = (imgData) => {
+        characters.push({
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+            name: name, 
+            mbti: mbtiInput.value, 
+            room: room,
+            isMinor: isMinorInput.checked,
+            profileImage: imgData, // ⭐ 사진 데이터 저장
 
-        currentLocation: 'apt', 
-        currentAction: '-', 
-        relationships: {}, 
-        specialRelations: {}
-    });
+            affiliation: affiliationInput.value,
+            preferredAffiliation: preferredAffiliationInput.value === 'none' ? null : preferredAffiliationInput.value,
+            dislikedAffiliation: dislikedAffiliationInput.value === 'none' ? null : dislikedAffiliationInput.value,
+            ability: abilityInput.value,
+            
+            alignment: alignmentInput.value,
+            preferredAlignment: preferredAlignmentInput.value === 'none' ? null : preferredAlignmentInput.value,
+            dislikedAlignment: dislikedAlignmentInput.value === 'none' ? null : dislikedAlignmentInput.value,
 
-    // ⭐ 1. 소속 영향 로직: 초기 호감도 설정
-    const newChar = characters[characters.length - 1]; // 방금 추가된 새 캐릭터
-    
-    // (A) 기존 캐릭터가 새 캐릭터에게 영향
-    characters.forEach(existingChar => {
-        if (existingChar.id === newChar.id) return; // 자기 자신 제외
+            currentLocation: 'apt', 
+            currentAction: '-', 
+            relationships: {}, 
+            specialRelations: {}
+        });
 
-        // 기존 캐릭터가 새 캐릭터의 소속을 선호
-        if (existingChar.preferredAffiliation && existingChar.preferredAffiliation === newChar.affiliation) {
-            updateRelationship(existingChar.id, newChar.id, AFFILIATION_INIT_BONUS); // +30
-            logs.push({ text: `[소속 인연] ${existingChar.name}${getJosa(existingChar.name, '은/는')} ${newChar.affiliation} 소속인 ${newChar.name}${getJosa(newChar.name, '에게')} 처음부터 강한 호감을 가졌다. (호감도 ${AFFILIATION_INIT_BONUS})`, type: 'event' });
-        }
-        // 기존 캐릭터가 새 캐릭터의 소속을 싫어함
-        else if (existingChar.dislikedAffiliation && existingChar.dislikedAffiliation === newChar.affiliation) {
-            updateRelationship(existingChar.id, newChar.id, AFFILIATION_INIT_PENALTY); // -20
-            logs.push({ text: `[소속 갈등] ${existingChar.name}${getJosa(existingChar.name, '은/는')} ${newChar.affiliation} 소속인 ${newChar.name}${getJosa(newChar.name, '에게')} 강력한 거리감을 느꼈다. (호감도 ${AFFILIATION_INIT_PENALTY})`, type: 'event' });
-        }
-        
-        // (B) 새 캐릭터가 기존 캐릭터에게 영향
-        // 새 캐릭터가 기존 캐릭터의 소속을 선호
-        if (newChar.preferredAffiliation && newChar.preferredAffiliation === existingChar.affiliation) {
-            updateRelationship(newChar.id, existingChar.id, AFFILIATION_INIT_BONUS); // +30
-            logs.push({ text: `[소속 인연] ${newChar.name}${getJosa(newChar.name, '은/는')} ${existingChar.affiliation} 소속인 ${existingChar.name}${getJosa(existingChar.name, '에게')} 처음부터 강한 호감을 가졌다. (호감도 ${AFFILIATION_INIT_BONUS})`, type: 'event' });
-        }
-        // 새 캐릭터가 기존 캐릭터의 소속을 싫어함
-        else if (newChar.dislikedAffiliation && newChar.dislikedAffiliation === existingChar.affiliation) {
-            updateRelationship(newChar.id, existingChar.id, AFFILIATION_INIT_PENALTY); // -20
-            logs.push({ text: `[소속 갈등] ${newChar.name}${getJosa(newChar.name, '은/는')} ${existingChar.affiliation} 소속인 ${existingChar.name}${getJosa(existingChar.name, '에게')} 강력한 거리감을 느꼈다. (호감도 ${AFFILIATION_INIT_PENALTY})`, type: 'event' });
-        }
-    });
-    nameInput.value = '';
-    isMinorInput.checked = false;
-    renderCharacterList(); renderLocations(); updateUI();
+        // 소속/성향 관계 로직 (기존 유지)
+        const newChar = characters[characters.length - 1];
+        const AFFILIATION_INIT_BONUS = 30; 
+        const AFFILIATION_INIT_PENALTY = -20;
+
+        characters.forEach(existingChar => {
+            if (existingChar.id === newChar.id) return;
+            if (existingChar.preferredAffiliation && existingChar.preferredAffiliation === newChar.affiliation) {
+                updateRelationship(existingChar.id, newChar.id, AFFILIATION_INIT_BONUS);
+            } else if (existingChar.dislikedAffiliation && existingChar.dislikedAffiliation === newChar.affiliation) {
+                updateRelationship(existingChar.id, newChar.id, AFFILIATION_INIT_PENALTY);
+            }
+            if (newChar.preferredAffiliation && newChar.preferredAffiliation === existingChar.affiliation) {
+                updateRelationship(newChar.id, existingChar.id, AFFILIATION_INIT_BONUS);
+            } else if (newChar.dislikedAffiliation && newChar.dislikedAffiliation === existingChar.affiliation) {
+                updateRelationship(newChar.id, existingChar.id, AFFILIATION_INIT_PENALTY);
+            }
+        });
+
+        // 입력창 초기화
+        nameInput.value = '';
+        isMinorInput.checked = false;
+        if(profileImgInput) profileImgInput.value = ''; 
+        renderCharacterList(); renderLocations(); updateUI();
+    };
+
+    // ⭐ 사진 파일 읽기
+    const file = profileImgInput && profileImgInput.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => saveCharData(e.target.result);
+        reader.readAsDataURL(file);
+    } else {
+        saveCharData(null); // 사진 없으면 null
+    }
 }
 
 function removeCharacter(id) {
@@ -930,7 +936,12 @@ function renderCharacterList() {
         div.className = "bg-white dark:bg-slate-700 p-4 rounded-xl border border-slate-200 dark:border-slate-600 shadow-sm relative group hover:shadow-md transition-shadow cursor-pointer";
         const badge = char.isMinor 
             ? `<span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full ml-1" title="미성년자">🌱</span>` 
-            : `<span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full ml-1 hidden" title="성인">adult</span>`;
+            : ``;
+
+        // ⭐ 이미지가 있으면 이미지 태그, 없으면 아이콘
+        const imgHtml = char.profileImage 
+            ? `<img src="${char.profileImage}" class="w-12 h-12 rounded-full object-cover border border-slate-200 shadow-inner">`
+            : `<div class="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-lg text-slate-400 flex-none shadow-inner"><i class="fa-regular fa-user"></i></div>`;
 
         if (affectionMode) {
             div.onclick = () => showAffectionModal(char.id);
@@ -942,23 +953,19 @@ function renderCharacterList() {
                 <div class="text-sm text-slate-500 dark:text-slate-400 mb-2"><i class="fa-solid fa-door-closed mr-1"></i> ${char.room}호</div>
                 <div class="flex items-center gap-2 text-sm">
                     <span class="text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-medium" title="소속">${char.affiliation}</span>
-                    <span class="text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full font-bold" title="능력">${char.ability}</span>
                 </div>
                 <div class="text-center mt-2 p-2 bg-brand-50 dark:bg-slate-800 rounded-lg text-brand-600 dark:text-brand-400 text-sm font-medium">클릭하여 관계 보기</div>
             `;
         } else {
-        div.onclick = () => showCharacterDetailModal(char.id); 
-
+            div.onclick = () => showCharacterDetailModal(char.id); 
             div.innerHTML = `
-                <button onclick="event.stopPropagation(); removeCharacter('${char.id}')" class="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"><i class="fa-solid fa-times"></i></button>
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-600 flex items-center justify-center text-lg"><i class="fa-regular fa-user"></i></div>
-                    <div>
-                        <h3 class="font-bold text-slate-900 dark:text-white leading-tight">${char.name}${badge}</h3>
-                        <div class="text-xs text-slate-500 dark:text-slate-400">
-                           ${char.mbti} · ${char.room}호 
-                           <span class="ml-2 text-brand-600 dark:text-brand-300 font-semibold" title="능력">${char.ability}</span>
-                           <span class="ml-1 text-purple-600 dark:text-purple-300" title="소속">${char.affiliation}</span>
+                <button onclick="event.stopPropagation(); removeCharacter('${char.id}')" class="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1 z-10"><i class="fa-solid fa-times"></i></button>
+                <div class="flex items-center gap-3">
+                    ${imgHtml} <div class="flex-1 min-w-0">
+                        <h3 class="font-bold text-lg text-slate-900 dark:text-white truncate" title="${char.name}">${char.name}${badge}</h3>
+                        <div class="text-xs text-slate-500 dark:text-slate-400 flex gap-2">
+                           <span title="호실"><i class="fa-solid fa-door-closed mr-1"></i>${char.room}호</span>
+                           <span class="font-medium truncate" title="소속">${char.affiliation}</span>
                         </div>
                     </div>
                 </div>
@@ -1343,4 +1350,213 @@ function downloadMapImage() {
     link.download = `relationship_map_${Date.now()}.png`;
     link.href = tempCanvas.toDataURL("image/png");
     link.click();
+}
+
+// ==========================================================
+// ⭐ 상세 프로필 (사원증) 모달 관련 함수
+// ==========================================================
+
+function switchDetailTab(clickedElement, tabId) {
+    document.querySelectorAll('.detail-tab-btn').forEach(btn => {
+        btn.setAttribute('data-active', 'false');
+    });
+    document.querySelectorAll('.detail-tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+
+    clickedElement.setAttribute('data-active', 'true');
+    document.getElementById(tabId).classList.remove('hidden');
+}
+
+function switchDetailTabByName(tabId) {
+    const btn = document.querySelector(`.detail-tab-btn[data-tab='${tabId}']`);
+    if(btn) {
+        switchDetailTab(btn, tabId);
+    }
+}
+
+function closeCharacterDetailModal() {
+    document.getElementById('character-detail-modal').classList.add('hidden');
+}
+
+// ⭐ 상세 모달에서 전체 호감도 모달을 띄우기 위한 래퍼 함수
+function openAffectionModalFromDetail() {
+    const charId = document.getElementById('character-detail-modal').dataset.currentId;
+    
+    // 1. 상세 모달 닫기
+    closeCharacterDetailModal();
+
+    // 2. 호감도 모드가 아니면 전환 후 띄우기
+    if (!affectionMode) {
+        toggleAffectionMode(); // 호감도 모드로 전환
+    }
+    // 3. 전체 호감도 모달 팝업
+    showAffectionModal(charId);
+}
+
+// ⭐ 관계 TOP 3 렌더링 함수
+function renderTopRelationships(char) {
+    const listContainer = document.getElementById('top-relations-list');
+    listContainer.innerHTML = ''; // Clear previous content
+
+    // 1. 관계 점수 계산 및 정렬 (자신 제외)
+    const relationScores = characters
+        .filter(c => c.id !== char.id)
+        .map(target => ({
+            target: target,
+            score: char.relationships[target.id] || 0,
+            specialStatus: char.specialRelations?.[target.id] // 특별 관계도 가져옴
+        }))
+        .sort((a, b) => b.score - a.score) // 내림차순 정렬
+        .slice(0, 3); // 상위 3개만 선택
+
+    // 2. 리스트 렌더링
+    if (relationScores.length === 0) {
+        listContainer.innerHTML = '<p class="text-slate-500 dark:text-slate-400 text-sm py-4 text-center">아직 상호작용 가능한 인물이 없습니다.</p>';
+        return;
+    }
+
+    relationScores.forEach(item => {
+        // 기존의 getRelationshipLabel 함수를 재활용합니다.
+        const statusLabel = getRelationshipLabel(item.score, item.specialStatus); 
+        const div = document.createElement('div');
+        div.className = 'flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700 rounded-lg shadow-sm';
+        
+        // 점수에 따른 텍스트 색상 결정
+        let scoreColorClass = 'text-slate-800 dark:text-slate-100';
+        if (item.score >= 80) scoreColorClass = 'text-blue-600 dark:text-blue-400 font-extrabold';
+        else if (item.score >= 50) scoreColorClass = 'text-green-600 dark:text-green-400 font-bold';
+        else if (item.score <= -50) scoreColorClass = 'text-red-600 dark:text-red-400 font-bold';
+
+        div.innerHTML = `
+            <span class="font-medium text-slate-800 dark:text-white">${item.target.name}</span>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-500 dark:text-slate-400">${statusLabel}</span>
+                <span class="font-bold ${scoreColorClass}">${item.score}</span>
+            </div>
+        `;
+        listContainer.appendChild(div);
+    });
+}
+
+// ⭐ 인물별 로그 렌더링 함수
+function renderCharacterLogs(char) {
+    const logContainer = document.getElementById('character-logs-list');
+    logContainer.innerHTML = ''; // Clear previous content
+    
+    // 로그 필터링: 해당 캐릭터의 이름이 포함된 로그만 추출
+    const filteredLogs = logs.filter(log => log.text.includes(char.name)).slice(0, 50); // 최근 50개 제한
+
+    if (filteredLogs.length === 0) {
+        logContainer.innerHTML = '<p class="text-slate-500 dark:text-slate-400 text-sm py-4 text-center">아직 이 인물과 관련된 로그가 없습니다.</p>';
+        return;
+    }
+    
+    filteredLogs.forEach(log => {
+        const div = document.createElement('div');
+        let typeClass = 'text-slate-600 dark:text-slate-300';
+        let icon = 'fa-solid fa-comment';
+        
+        // logs 배열은 날짜 정보(day)를 가지고 있지 않으므로 임시로 순서 정보를 사용합니다.
+        // 로그가 최신순(logs 배열의 앞부분)으로 저장되므로, 인덱스를 이용해 "N번째 로그"로 표시합니다.
+        const logDay = logs.length - logs.indexOf(log); 
+        
+        if (log.type === 'event') {
+            typeClass = 'text-red-600 dark:text-red-400 font-medium';
+            icon = 'fa-solid fa-exclamation-circle';
+        } else if (log.type === 'social') {
+            typeClass = 'text-blue-600 dark:text-blue-400 font-medium';
+            icon = 'fa-solid fa-users';
+        } else if (log.type === 'solo') {
+            typeClass = 'text-green-600 dark:text-green-400';
+            icon = 'fa-solid fa-person';
+        }
+
+        
+        div.className = 'text-sm border-l-4 border-slate-200 dark:border-slate-700 pl-3 py-1';
+        div.innerHTML = `
+            <div class="text-xs text-slate-400 dark:text-slate-500 mb-1 font-mono">${logDay}번째 로그</div>
+            <div class="${typeClass}">
+                <i class="${icon} w-4 text-center mr-1"></i> ${log.text}
+            </div>
+        `;
+        logContainer.appendChild(div);
+    });
+}
+
+
+// ⭐ 메인 사원증 모달 표시 함수 (데이터 설정 및 탭 초기화)
+function showCharacterDetailModal(charId) {
+    const char = characters.find(c => c.id === charId);
+    if (!char) return;
+
+    document.getElementById('character-detail-modal').dataset.currentId = charId;
+    
+    // 1. 데이터 바인딩
+    document.getElementById('detail-char-name').textContent = char.name.toUpperCase();
+    document.getElementById('detail-char-mbti').textContent = `MBTI/${char.mbti}`;
+    document.getElementById('detail-char-room').textContent = `${char.room}호`;
+    document.getElementById('detail-char-affiliation').textContent = char.affiliation;
+    document.getElementById('detail-char-ability').textContent = char.ability;
+    document.getElementById('detail-char-alignment').textContent = char.alignment;
+
+    // ⭐ 2. 모달에 사진 표시
+    const imgContainer = document.getElementById('detail-char-img-container');
+    if (imgContainer) { // id가 추가되었는지 확인
+        if (char.profileImage) {
+            imgContainer.innerHTML = `<img src="${char.profileImage}" class="w-full h-full object-cover">`;
+        } else {
+            imgContainer.innerHTML = `<i class="fa-regular fa-user"></i>`;
+        }
+    }
+
+    // 3. 관계 및 로그 탭 데이터 렌더링
+    renderTopRelationships(char);
+    renderCharacterLogs(char);
+
+    // 4. 모달 표시
+    document.getElementById('character-detail-modal').classList.remove('hidden');
+    switchDetailTabByName('id-card');
+}
+// ==========================================================
+// ⭐ [추가] 사원증 사진 클릭 시 이미지 변경 로직
+// ==========================================================
+
+// 1. 사진 영역 클릭 시 숨겨진 파일 입력창을 대신 클릭해주는 함수
+function triggerModalImageUpload() {
+    document.getElementById('modal-profile-input').click();
+}
+
+// 2. 파일이 선택되면 데이터를 읽어서 캐릭터 정보에 저장하고 화면을 갱신하는 함수
+function updateCharacterProfileImage(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // 현재 모달에 띄워진 캐릭터 ID 가져오기
+    const charId = document.getElementById('character-detail-modal').dataset.currentId;
+    const char = characters.find(c => c.id === charId);
+    if (!char) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        // 1. 데이터 저장
+        char.profileImage = e.target.result;
+
+        // 2. 모달(사원증) 이미지 즉시 변경
+        const imgContainer = document.getElementById('detail-char-img-container');
+        // hover 효과를 유지하기 위해 내부 HTML 구조를 다시 잡음
+        imgContainer.innerHTML = `
+            <img src="${char.profileImage}" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <i class="fa-solid fa-camera text-white text-xl"></i>
+            </div>
+        `;
+
+        // 3. 명단 리스트(카드)의 작은 이미지도 즉시 갱신
+        renderCharacterList(); 
+    };
+    reader.readAsDataURL(file);
+
+    // 입력창 초기화 (같은 파일을 다시 선택할 때도 이벤트가 발생하도록)
+    input.value = '';
 }

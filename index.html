@@ -121,6 +121,16 @@
                         <select id="input-disliked-affiliation" class="affiliation-select px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-32">
                             </select>
                     </div>
+                    <div class="mb-1">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">프로필 사진</label>
+                        <input type="file" id="input-profile-img" accept="image/*" class="block w-full text-xs text-slate-500
+                        file:mr-2 file:py-1 file:px-2
+                        file:rounded-full file:border-0
+                        file:text-xs file:font-semibold
+                        file:bg-brand-50 file:text-brand-700
+                        hover:file:bg-brand-100
+                        "/>
+                    </div>
                     <div class="flex items-center mb-1">
                         <input type="checkbox" id="input-minor" class="w-4 h-4 text-brand-600 bg-gray-100 border-gray-300 rounded focus:ring-brand-500 dark:focus:ring-brand-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
                         <label for="input-minor" class="ml-2 text-xs font-medium text-slate-500 dark:text-slate-400">미성년자</label>
@@ -297,7 +307,90 @@
             </div>
         </div>
     </div>
+<div id="character-detail-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100 relative shadow-2xl">
+            
+            <button onclick="closeCharacterDetailModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors z-30 p-1">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <div class="bg-slate-100 dark:bg-slate-700 p-6 flex flex-col items-center relative">
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-8 bg-slate-900 rounded-b-lg flex justify-center items-center">
+                    <div class="w-2 h-2 rounded-full bg-slate-500"></div>
+                </div>
 
+                <div id="detail-char-img-container" onclick="triggerModalImageUpload()" class="relative group cursor-pointer mt-4 w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-4xl text-slate-400 border-4 border-white dark:border-slate-800 shadow-lg flex-none overflow-hidden transition-transform hover:scale-105 active:scale-95">
+                    <i class="fa-regular fa-user"></i>
+                    
+                    <div class="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fa-solid fa-camera text-white text-xl"></i>
+                    </div>
+                </div>
+
+                <input type="file" id="modal-profile-input" class="hidden" accept="image/*" onchange="updateCharacterProfileImage(this)">
+
+                <h3 id="detail-char-name" class="font-extrabold text-xl mt-3 tracking-wider text-slate-800 dark:text-white">이름</h3>
+                <p id="detail-char-mbti" class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-1">MBTI/????</p>
+            </div>
+            
+            <div class="flex border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 sticky top-0 z-20">
+                <button data-tab="id-card" onclick="switchDetailTab(this, 'id-card')" class="detail-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent hover:border-brand-500 dark:hover:border-brand-400 transition-colors text-slate-600 dark:text-slate-300 data-[active='true']:text-brand-600 dark:data-[active='true']:text-brand-400 data-[active='true']:border-brand-600 dark:data-[active='true']:border-brand-400" data-active="true">
+                    <i class="fa-solid fa-id-card mr-1"></i> 사원증
+                </button>
+                <button data-tab="relations" onclick="switchDetailTab(this, 'relations')" class="detail-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent hover:border-brand-500 dark:hover:border-brand-400 transition-colors text-slate-600 dark:text-slate-300">
+                    <i class="fa-solid fa-user-group mr-1"></i> 관계 TOP 3
+                </button>
+                <button data-tab="logs" onclick="switchDetailTab(this, 'logs')" class="detail-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent hover:border-brand-500 dark:hover:border-brand-400 transition-colors text-slate-600 dark:text-slate-300">
+                    <i class="fa-solid fa-list-ul mr-1"></i> 로그
+                </button>
+            </div>
+
+            <div class="p-4 overflow-y-auto max-h-[60vh]">
+                
+                <div id="id-card" class="detail-tab-content space-y-4">
+                    <div class="grid grid-cols-2 gap-y-3 gap-x-4 w-full text-sm">
+                        
+                        <div class="text-xs text-slate-500 dark:text-slate-400">호실 (ROOM)</div>
+                        <div id="detail-char-room" class="font-semibold text-right text-slate-800 dark:text-slate-100"></div>
+                        
+                        <div class="text-xs text-slate-500 dark:text-slate-400">소속 (AFFILIATION)</div>
+                        <div id="detail-char-affiliation" class="font-semibold text-right text-slate-800 dark:text-slate-100"></div>
+                        
+                        <div class="text-xs text-slate-500 dark:text-slate-400">능력 등급 (ABILITY)</div>
+                        <div id="detail-char-ability" class="font-semibold text-right text-slate-800 dark:text-slate-100"></div>
+
+                        <div class="text-xs text-slate-500 dark:text-slate-400">성향 (ALIGNMENT)</div>
+                        <div id="detail-char-alignment" class="font-semibold text-right text-slate-800 dark:text-slate-100"></div>
+
+                    </div>
+
+                    <div class="w-full text-center pt-2">
+                        <button onclick="switchDetailTabByName('relations')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-md">
+                            <i class="fa-solid fa-heart mr-1"></i> 관계 현황 바로가기
+                        </button>
+                    </div>
+                </div>
+
+                <div id="relations" class="detail-tab-content hidden">
+                    <h4 class="text-lg font-bold mb-3 text-slate-800 dark:text-white">호감도 상위 3인</h4>
+                    <div id="top-relations-list" class="space-y-2">
+                        </div>
+                    <div class="w-full text-center pt-2">
+                        <button onclick="openAffectionModalFromDetail()" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-md mt-4">
+                            <i class="fa-solid fa-user-group mr-1"></i> 전체 관계 현황 보기
+                        </button>
+                    </div>
+                </div>
+
+                <div id="logs" class="detail-tab-content hidden">
+                    <h4 class="text-lg font-bold mb-3 text-slate-800 dark:text-white">최근 로그 (최대 50개)</h4>
+                    <div id="character-logs-list" class="space-y-3">
+                        </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
