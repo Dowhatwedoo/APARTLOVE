@@ -649,10 +649,13 @@ logs = [...dailyLogs, ...logs];
 // ⭐ 하루 진행 버튼의 새로운 로직 진입점
 function handleNextDayClick() {
     // 1. 하루 진행 로직 실행
-    nextDay(false); // 로그 출력은 nextDay 내부에서 처리
+    nextDay(false); 
+
+    // ⭐⭐⭐ [추가] nextDay() 호출 후, 날짜를 1일 증가시킵니다. ⭐⭐⭐
+    day++; 
 
     // 2. UI 업데이트
-    renderStatusTable();
+    renderStatusTable(); 
     renderLocations();
     updateUI();
 }
@@ -671,12 +674,19 @@ function nextWeek() {
 
 // 7번 반복하며 nextDay 함수 호출
     for (let i = 0; i < 7; i++) {
-        const dailyLogs = nextDay(true); 
-        allWeeklyLogs.push({
-            day: startDay + i,
-            logs: dailyLogs
-        });
-    }
+    const dailyLogs = nextDay(true); // nextDay는 이제 day++를 하지 않습니다.
+
+    // ⭐⭐⭐ [추가] dailyLogs를 얻은 후 날짜를 증가시킵니다. ⭐⭐⭐
+    day++; 
+    
+    // 로그 기록은 증가된 날짜를 사용해야 하므로, day-- 대신 i를 사용하여 시작 날짜 보정
+    const logDay = day - 1; // 로직이 실행된 날짜 (day++ 이전)
+    
+    allWeeklyLogs.push({
+        day: logDay, // ⭐ 날짜는 증가된 날짜를 사용합니다.
+        logs: dailyLogs
+    });
+}
 
     // 일주일 치 로그를 한 번에 화면에 출력
     renderWeeklyLogs(allWeeklyLogs);
